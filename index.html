@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RepCel Salamanca - Sistema de Gestión</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        .view { display: none; }
+        .view.active { display: block; }
+        body { font-family: 'Inter', sans-serif; }
+        @media print {
+            body * { visibility: hidden; }
+            #ticket-imprimible, #ticket-imprimible * { visibility: visible; }
+            #ticket-imprimible {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                /* Estilos específicos para impresora térmica 58mm */
+                font-family: 'Courier New', monospace;
+                font-size: 10px; /* Tamaño de fuente más pequeño para 58mm */
+                line-height: 1.2;
+                padding: 0; /* Sin padding en el cuerpo */
+                margin: 0; /* Sin margen en el cuerpo */
+            }
+            #ticket-imprimible div {
+                width: 58mm; /* Ancho fijo para el ticket */
+                max-width: 58mm;
+                box-sizing: border-box;
+                padding: 5px; /* Pequeño padding dentro del contenido del ticket */
+                margin: 0;
+            }
+            #ticket-imprimible h2, #ticket-imprimible p, #ticket-imprimible table {
+                margin: 0;
+                padding: 0;
+                line-height: 1.2;
+            }
+            #ticket-imprimible table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            #ticket-imprimible th, #ticket-imprimible td {
+                padding: 2px 0; /* Espaciado ajustado para celdas */
+                text-align: left;
+                vertical-align: top;
+            }
+            #ticket-imprimible .text-center { text-align: center; }
+            #ticket-imprimible .text-right { text-align: right; }
+            #ticket-imprimible .border-bottom-dashed { border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px; }
+            #ticket-imprimible .border-top-dashed { border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px; }
+        }
+        .image-preview {
+            width: 100px; /* Ajusta el tamaño de la miniatura según necesites */
+            height: 100px; /* Ajusta el tamaño de la miniatura según necesites */
+            object-fit: cover;
+            border-radius: 8px;
+            margin-top: 10px;
+            cursor: pointer; /* Añade cursor de puntero para indicar que es clickeable */
+        }
+        /* Estilos para el visor de imagen */
+        #image-viewer-modal {
+            background-color: rgba(0, 0, 0, 0.9);
+            z-index: 9999; /* Asegura que esté por encima de todo */
+        }
+        #image-viewer-content {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain; /* Ajusta la imagen dentro del modal */
+        }
+        /* Clase para deshabilitar elementos */
+        .disabled-action {
+            pointer-events: none; /* Evita clics */
+            opacity: 0.5; /* Reduce la opacidad para indicar que está deshabilitado */
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div id="app" class="container mx-auto p-4 max-w-7xl">
+        <div id="view-auth" class="view">
+            <div class="flex items-center justify-center min-h-screen"><div class="w-full max-w-md bg-white p-8 rounded-2xl shadow-xl"><div class="text-center mb-8"><h1 class="text-5xl font-extrabold text-gray-900">Rep<span class="text-red-600">Cell</span></h1><p class="text-gray-700 font-semibold tracking-widest text-lg mt-1">SALAMANCA</p></div><form id="login-form"><h2 id="auth-title" class="text-2xl font-bold text-center text-gray-700 mb-6">Iniciar Sesión</h2><p id="auth-error" class="bg-red-100 text-red-700 text-sm p-3 rounded-lg mb-4 hidden"></p><p id="auth-success" class="bg-green-100 text-green-700 text-sm p-3 rounded-lg mb-4 hidden"></p><div class="mb-4"><label for="login-email" class="block text-gray-700 text-sm font-bold mb-2">Correo Electrónico</label><input type="email" id="login-email" autocomplete="email" class="shadow-sm appearance-none border rounded w-full py-2 px-3 text-gray-700" required></div><div class="mb-6"><label for="login-password" class="block text-gray-700 text-sm font-bold mb-2">Contraseña</label><input type="password" id="login-password" class="shadow-sm appearance-none border rounded w-full py-2 px-3 text-gray-700" required></div><button id="auth-button" type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Entrar</button></form><p class="text-center text-gray-500 text-xs mt-4"><a href="#" id="toggle-auth-mode" class="text-blue-500 hover:text-blue-700">¿No tienes cuenta? Regístrate aquí.</a></p></div></div>
+        </div>
+        <div id="app-content" class="hidden">
+            <header class="mb-6 bg-black p-4 rounded-lg shadow-lg flex justify-between items-center"><div><h1 class="text-4xl font-extrabold text-white">Rep<span class="text-red-600">Cell</span></h1><p id="user-greeting" class="text-white font-semibold tracking-widest"></p></div><div><button id="logout-btn" class="bg-red-500 hover:bg-red-700 text-white text-xs font-bold py-1 px-3 rounded">Cerrar Sesión</button></div></header>
+            <main>
+                <div id="view-main-menu" class="view">
+                    <h2 class="text-3xl font-bold mb-6 text-gray-800">Menú Principal</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div id="menu-inventario" class="bg-white p-6 rounded-lg shadow hover:shadow-xl cursor-pointer transition-shadow"><i class="fas fa-boxes-stacked text-4xl text-green-500 mb-3"></i><h3 class="text-2xl font-bold text-gray-800">Inventario</h3><p class="text-gray-500">Gestionar productos y stock.</p></div>
+                        <div id="menu-reparaciones" class="bg-white p-6 rounded-lg shadow hover:shadow-xl cursor-pointer transition-shadow"><i class="fas fa-tools text-4xl text-yellow-500 mb-3"></i><h3 class="text-2xl font-bold text-gray-800">Reparaciones</h3><p class="text-gray-500">Administrar órdenes de servicio.</p></div>
+                        <div id="menu-ventas" class="bg-white p-6 rounded-lg shadow hover:shadow-xl cursor-pointer transition-shadow"><i class="fas fa-cash-register text-4xl text-blue-500 mb-3"></i><h3 class="text-2xl font-bold text-gray-800">Ventas</h3><p class="text-gray-500">Registrar ventas de productos.</p></div>
+                        <div id="menu-reportes" class="bg-white p-6 rounded-lg shadow hover:shadow-xl cursor-pointer transition-shadow"><i class="fas fa-chart-pie text-4xl text-purple-500 mb-3"></i><h3 class="text-2xl font-bold text-gray-800">Reportes</h3><p class="text-gray-500">Ver análisis de ventas.</p></div>
+                    </div>
+                </div>
+                <div id="view-inventario" class="view">
+                    <div class="mb-6 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4" role="alert">
+                        <p class="font-bold">Modo de Edición de Productos</p>
+                        <p class="text-sm">Introduce la clave para habilitar la modificación y eliminación de productos.</p>
+                        <div class="mt-2 flex items-center">
+                            <label for="admin-key-input-inventario" class="sr-only">Clave de Habilitación</label>
+                            <input type="password" id="admin-key-input-inventario" placeholder="Clave de Habilitación" class="p-2 border rounded-md text-gray-800 flex-grow max-w-xs">
+                            <button id="activate-product-admin-btn" class="ml-3 bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-3 rounded text-sm">Activar</button>
+                            <span id="admin-status-inventario" class="ml-3 text-sm font-semibold"></span>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center mb-6"><h2 class="text-3xl font-bold text-gray-800">Gestión de Inventario</h2><button id="add-product-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md flex items-center"><i class="fas fa-plus mr-2"></i>Agregar Producto</button></div>
+                    <div class="bg-white p-4 rounded-lg shadow"><div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Imagen</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Precio</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th><th scope="col" class="relative px-6 py-3"><span class="sr-only">Acciones</span></th></tr></thead><tbody id="productos-tbody" class="bg-white divide-y divide-gray-200"></tbody></table></div></div>
+                    <button class="back-to-menu text-blue-600 mt-6 hover:underline">← Volver al Menú</button>
+                </div>
+                <div id="view-reparaciones" class="view">
+                    <div class="flex justify-between items-center mb-6"><h2 class="text-3xl font-bold text-gray-800">Gestión de Reparaciones</h2><div class="flex space-x-2"><button id="reporte-diario-reparaciones-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg text-sm">Reporte del Día (PDF)</button><button id="reporte-semanal-reparaciones-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg text-sm">Reporte Semanal (PDF)</button><button id="add-reparacion-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg"><i class="fas fa-plus mr-2"></i>Registrar Equipo</button></div></div>
+                    <div class="bg-white p-4 rounded-lg shadow"><div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Imagen</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Folio</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha de Registro</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dispositivo</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th><th scope="col" class="relative px-6 py-3"><span class="sr-only">Acciones</span></th></tr></thead><tbody id="reparaciones-tbody" class="bg-white divide-y divide-gray-200"></tbody></table></div></div>
+                    <button class="back-to-menu text-blue-600 mt-6 hover:underline">← Volver al Menú</button>
+                </div>
+                <div id="view-ventas" class="view">
+                    <div class="flex justify-between items-center mb-6"><h2 class="text-3xl font-bold text-gray-800">Punto de Venta</h2><button class="back-to-menu text-blue-600 hover:underline">← Volver al Menú</button></div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2">
+                            <div class="bg-white p-4 rounded-lg shadow">
+                                <input type="text" id="search-productos-venta" placeholder="Buscar producto para vender..." class="w-full p-2 border border-gray-300 rounded-md mb-4">
+                                <div id="productos-list-venta" class="divide-y divide-gray-200 max-h-[60vh] overflow-y-auto"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-semibold text-gray-700 mb-4">Carrito de Venta</h3>
+                            <div class="bg-white p-4 rounded-lg shadow">
+                                <p id="cart-empty" class="text-gray-500 text-center py-8">El carrito está vacío.</p>
+                                <div id="cart-items" class="divide-y divide-gray-200"></div>
+                                <div id="cart-summary" class="mt-4 pt-4 border-t" style="display: none;">
+                                    <div class="flex justify-between items-center text-gray-700 text-sm">
+                                        <span>Subtotal:</span><span id="cart-subtotal">$0.00</span>
+                                    </div>
+                                    <div class="flex justify-between items-center mt-2">
+                                        <label for="discount-percentage-input" class="text-gray-700 text-sm">Descuento (%):</label>
+                                        <input type="number" id="discount-percentage-input" min="0" max="100" value="0" class="w-20 p-1 border rounded-md text-right text-sm">
+                                    </div>
+                                    <div class="flex justify-between items-center font-bold text-lg mt-2">
+                                        <span>Total:</span><span id="cart-total">$0.00</span>
+                                    </div>
+                                    <button id="process-sale-btn" class="w-full bg-green-500 text-white py-2 mt-4 rounded-lg hover:bg-green-600">Finalizar Venta</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h3 class="text-2xl font-bold mt-8 mb-4 text-gray-800">Historial de Ventas</h3>
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Folio</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                        <th scope="col" class="relative px-6 py-3"><span class="sr-only">Acciones</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ventas-historicas-tbody" class="bg-white divide-y divide-gray-200">
+                                    <tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">Cargando ventas...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div id="view-reportes" class="view">
+                    <div class="flex justify-between items-center mb-6"><h2 class="text-3xl font-bold text-gray-800">Reporte de Ventas</h2><button class="back-to-menu text-blue-600 hover:underline">← Volver al Menú</button></div>
+                    <div class="bg-white p-4 rounded-lg shadow mb-6 flex items-center space-x-4">
+                        <div><label for="fecha-inicio" class="block text-sm font-medium text-gray-700">Desde:</label><input type="date" id="fecha-inicio" class="mt-1 p-2 border rounded-md"></div>
+                        <div><label for="fecha-fin" class="block text-sm font-medium text-gray-700">Hasta:</label><input type="date" id="fecha-fin" class="mt-1 p-2 border rounded-md"></div>
+                        <button id="generar-reporte-btn" class="self-end bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg">Generar Reporte</button>
+                        <button id="reporte-diario-ventas-btn" class="self-end bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Reporte del Día (PDF)</button>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <div id="reporte-summary" class="mb-4 text-lg"></div><div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ventas Realizadas</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ingresos Totales</th></tr></thead><tbody id="reporte-tbody" class="bg-white divide-y divide-gray-200"><tr><td colspan="3" class="px-6 py-4 text-center text-gray-500">Selecciona un rango de fechas y genera un reporte.</td></tr></tbody></table></div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    <div id="producto-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50">
+        <div class="modal-content bg-white rounded-lg shadow-2xl w-full max-w-md p-6">
+            <h2 id="producto-modal-title" class="text-2xl font-bold mb-4"></h2>
+            <form id="producto-form">
+                <input type="hidden" id="producto-id">
+                <div class="mb-4">
+                    <label for="producto-nombre" class="block text-sm font-medium">Nombre del Producto</label>
+                    <input type="text" id="producto-nombre" class="mt-1 block w-full px-3 py-2 border rounded-md" required>
+                </div>
+                <div class="mb-4">
+                    <label for="producto-sku" class="block text-sm font-medium">SKU (Opcional)</label>
+                    <input type="text" id="producto-sku" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="producto-precio" class="block text-sm font-medium">Precio</label>
+                        <input type="number" step="0.01" id="producto-precio" class="mt-1 block w-full px-3 py-2 border rounded-md" required>
+                    </div>
+                    <div>
+                        <label for="producto-cantidad" class="block text-sm font-medium">Cantidad</label>
+                        <input type="number" id="producto-cantidad" class="mt-1 block w-full px-3 py-2 border rounded-md" required>
+                    </div>
+                </div>
+                <div class="mb-4 mt-4">
+                    <label for="producto-imagen" class="block text-sm font-medium">Imagen del Producto</label>
+                    <input type="file" id="producto-imagen" accept="image/*" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    <img id="producto-imagen-preview" class="image-preview hidden" src="#" alt="Vista previa de la imagen">
+                </div>
+                <div class="flex justify-end space-x-4 mt-6">
+                    <button type="button" id="cancel-product-btn" class="bg-gray-300 hover:bg-gray-400 font-bold py-2 px-4 rounded">Cancelar</button>
+                    <button type="submit" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="reparacion-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50">
+        <div class="modal-content bg-white rounded-lg shadow-2xl w-full max-w-md p-6">
+            <h2 id="reparacion-modal-title" class="text-2xl font-bold mb-4"></h2>
+            <form id="reparacion-form">
+                <input type="hidden" id="reparacion-id">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="col-span-2">
+                        <label for="cliente-nombre" class="block text-sm font-medium">Nombre del Cliente</label>
+                        <input type="text" id="cliente-nombre" class="mt-1 block w-full px-3 py-2 border rounded-md" required>
+                    </div>
+                    <div class="col-span-2">
+                        <label for="cliente-telefono" class="block text-sm font-medium">Teléfono (Opcional)</label>
+                        <input type="tel" id="cliente-telefono" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                    </div>
+                    <div class="col-span-2">
+                        <label for="dispositivo-marca" class="block text-sm font-medium">Marca y Modelo</label>
+                        <input type="text" id="dispositivo-marca" class="mt-1 block w-full px-3 py-2 border rounded-md" required>
+                    </div>
+                    <div class="col-span-2">
+                        <label for="problema-descripcion" class="block text-sm font-medium">Problema Reportado</label>
+                        <textarea id="problema-descripcion" rows="3" class="mt-1 block w-full px-3 py-2 border rounded-md" required></textarea>
+                    </div>
+                    <div>
+                        <label for="costo-reparacion" class="block text-sm font-medium">Costo Estimado ($)</label>
+                        <input type="number" step="0.01" id="costo-reparacion" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                    </div>
+                    <div>
+                        <label for="estado-reparacion" class="block text-sm font-medium">Estado</label>
+                        <select id="estado-reparacion" class="mt-1 block w-full px-3 py-2 border rounded-md">
+                            <option>Recibido</option>
+                            <option>En diagnóstico</option>
+                            <option>Esperando piezas</option>
+                            <option>En reparación</option>
+                            <option>Listo para entrega</option>
+                            <option>Entregado</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-4 mt-4">
+                    <label for="reparacion-imagen" class="block text-sm font-medium">Imagen del Dispositivo</label>
+                    <input type="file" id="reparacion-imagen" accept="image/*" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    <img id="reparacion-imagen-preview" class="image-preview hidden" src="#" alt="Vista previa de la imagen">
+                </div>
+                <div class="flex justify-end space-x-4 mt-6">
+                    <button type="button" id="cancel-reparacion-btn" class="bg-gray-300 hover:bg-gray-400 font-bold py-2 px-4 rounded">Cancelar</button>
+                    <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">Guardar</button>
+                </div>
+                <button type="button" id="print-reparacion-ticket-btn" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg mt-4">Imprimir Ticket</button>
+            </form>
+        </div>
+    </div>
+    
+    <div id="ticket-imprimible" class="hidden"></div>
+    <div id="reporte-imprimible" class="hidden"></div>
+
+    <div id="image-viewer-modal" class="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center p-4 hidden z-50">
+        <button id="close-image-viewer" class="absolute top-4 right-4 text-white text-4xl cursor-pointer">&times;</button>
+        <img id="image-viewer-content" src="#" alt="Imagen en grande" class="max-w-full max-h-full">
+    </div>
+
+    <script type="module">
+        'use strict';
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+        // --- CONFIGURACIÓN E INICIALIZACIÓN ---
+        const SUPABASE_URL = 'https://fssawsdgdqnsiyetaplz.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzc2F3c2RnZHFuc2l5ZXRhcGx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEwMDgwNDYsImV4cCI6MjA2NjU4NDA0Nn0.dBPYIlocjZ31-MifeFM0LlRzrHMcwRK7r_ZZl1ei-2c';
+        const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // --- ESTADO DE LA APP ---
+        let isRegisterMode = false;
+        let cart = [];
+        let productosDisponibles = [];
+        let isProductAdminMode = false;
+        const PRODUCT_ADMIN_KEY = 'claveproductos123'; 
+
+        // --- ELEMENTOS DEL DOM ---
+        const appContent = document.getElementById('app-content');
+        const loginForm = document.getElementById('login-form');
+        const logoutBtn = document.getElementById('logout-btn');
+        const authErrorEl = document.getElementById('auth-error');
+        const authSuccessEl = document.getElementById('auth-success');
+        const toggleAuthLink = document.getElementById('toggle-auth-mode');
+        const userGreetingEl = document.getElementById('user-greeting');
+
+        // Menú
+        const menuInventarioBtn = document.getElementById('menu-inventario');
+        const menuReparacionesBtn = document.getElementById('menu-reparaciones');
+        const menuVentasBtn = document.getElementById('menu-ventas');
+        const menuReportesBtn = document.getElementById('menu-reportes');
+        const backToMenuBtns = document.querySelectorAll('.back-to-menu');
+
+        // Productos
+        const productosTbody = document.getElementById('productos-tbody');
+        const productModal = document.getElementById('producto-modal');
+        const productForm = document.getElementById('producto-form');
+        const addProductBtn = document.getElementById('add-product-btn');
+        const cancelProductBtn = document.getElementById('cancel-product-btn');
+        const productoImagenInput = document.getElementById('producto-imagen');
+        const productoImagenPreview = document.getElementById('producto-imagen-preview');
+        const adminKeyInputInventario = document.getElementById('admin-key-input-inventario'); 
+        const adminStatusInventario = document.getElementById('admin-status-inventario');
+        const activateProductAdminBtn = document.getElementById('activate-product-admin-btn'); // Nuevo botón de activar
+
+
+        // Reparaciones
+        const reparacionesTbody = document.getElementById('reparaciones-tbody');
+        const reparacionModal = document.getElementById('reparacion-modal');
+        const reparacionForm = document.getElementById('reparacion-form');
+        const addReparacionBtn = document.getElementById('add-reparacion-btn');
+        const cancelReparacionBtn = document.getElementById('cancel-reparacion-btn');
+        const reparacionImagenInput = document.getElementById('reparacion-imagen');
+        const reparacionImagenPreview = document.getElementById('reparacion-imagen-preview');
+        const printReparacionTicketBtn = document.getElementById('print-reparacion-ticket-btn');
+
+        // Ventas y Reportes
+        const productosListVenta = document.getElementById('productos-list-venta');
+        const cartItemsContainer = document.getElementById('cart-items');
+        const cartEmptyMsg = document.getElementById('cart-empty');
+        const cartSummary = document.getElementById('cart-summary');
+        const cartSubtotalEl = document.getElementById('cart-subtotal');
+        const discountPercentageInput = document.getElementById('discount-percentage-input');
+        const cartTotalEl = document.getElementById('cart-total');
+        const processSaleBtn = document.getElementById('process-sale-btn');
+        const ventasHistoricasTbody = document.getElementById('ventas-historicas-tbody');
+        const generarReporteBtn = document.getElementById('generar-reporte-btn');
+        const reporteTbody = document.getElementById('reporte-tbody');
+        const reporteSummary = document.getElementById('reporte-summary');
+        const reporteDiarioVentasBtn = document.getElementById('reporte-diario-ventas-btn');
+        const reporteDiarioReparacionesBtn = document.getElementById('reporte-diario-reparaciones-btn');
+        const reporteSemanalReparacionesBtn = document.getElementById('reporte-semanal-reparaciones-btn');
+
+        // Visor de imagen
+        const imageViewerModal = document.getElementById('image-viewer-modal');
+        const imageViewerContent = document.getElementById('image-viewer-content');
+        const closeImageViewerBtn = document.getElementById('close-image-viewer');
+        
+        // --- FUNCIONES DE AUTENTICACIÓN ---
+        async function handleLogin(email, password) { const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) showAuthError("Correo o contraseña incorrectos."); }
+        async function handleRegister(email, password) { const { error } = await supabase.auth.signUp({ email, password }); if (error) { error.message.includes("User already registered") ? showAuthError("Este correo ya está en uso.") : showAuthError(error.message); } else { showAuthSuccess("¡Registro exitoso! Revisa tu correo para confirmar tu cuenta."); } }
+        async function handleLogout() { await supabase.auth.signOut(); }
+
+        // --- FUNCIONES DE UI ---
+        function showAuthError(message) { authSuccessEl.classList.add('hidden'); authErrorEl.textContent = message; authErrorEl.classList.remove('hidden'); }
+        function showAuthSuccess(message) { authErrorEl.classList.add('hidden'); authSuccessEl.textContent = message; authSuccessEl.classList.remove('hidden'); }
+        function clearAuthMessages() { authErrorEl.classList.add('hidden'); authSuccessEl.classList.add('hidden'); }
+        function toggleAuthMode() { isRegisterMode = !isRegisterMode; clearAuthMessages(); loginForm.reset(); document.getElementById('auth-title').textContent = isRegisterMode ? 'Crear Nueva Cuenta' : 'Iniciar Sesión'; document.getElementById('auth-button').textContent = isRegisterMode ? 'Registrarse' : 'Entrar'; toggleAuthLink.textContent = isRegisterMode ? '¿Ya tienes cuenta? Inicia sesión.' : '¿No tienes cuenta? Regístrate aquí.'; }
+        function showView(viewId) { document.querySelectorAll('.view').forEach(v => v.classList.remove('active')); if (viewId === 'view-auth') { appContent.classList.add('hidden'); document.getElementById('view-auth').classList.add('active'); } else { appContent.classList.remove('hidden'); const viewToShow = document.getElementById(viewId); if(viewToShow) viewToShow.classList.add('active'); }
+            if (viewId === 'view-inventario') {
+                checkProductAdminKey(adminKeyInputInventario.value, adminStatusInventario);
+            } else {
+                 isProductAdminMode = false;
+                 if (adminKeyInputInventario) adminKeyInputInventario.value = '';
+                 updateProductAdminUI();
+            }
+            if (viewId === 'view-ventas') {
+                CargarYMostrarVentasHistoricas();
+            }
+            updateProductAdminUI();
+        }
+        
+        // --- FUNCIONES DE ADMINISTRACIÓN Y PERMISOS DE PRODUCTOS ---
+        function checkProductAdminKey(key, statusElement) {
+            if (key === PRODUCT_ADMIN_KEY) {
+                isProductAdminMode = true;
+                if (statusElement) {
+                    statusElement.textContent = 'Edición de Productos: HABILITADA';
+                    statusElement.classList.remove('text-red-600');
+                    statusElement.classList.add('text-green-600');
+                }
+            } else {
+                isProductAdminMode = false;
+                if (statusElement) {
+                    statusElement.textContent = 'Edición de Productos: DESHABILITADA';
+                    statusElement.classList.remove('text-green-600');
+                    statusElement.classList.add('text-red-600');
+                }
+            }
+            updateProductAdminUI();
+        }
+
+      function updateProductAdminUI() {
+            const productActionButtons = [addProductBtn];
+            document.querySelectorAll('#productos-tbody .edit-btn, #productos-tbody .delete-btn').forEach(btn => productActionButtons.push(btn));
+
+            productActionButtons.forEach(btn => {
+                if (isProductAdminMode) { // <-- ¡CORREGIDO A isProductAdminMode!
+                    btn.classList.remove('disabled-action');
+                    btn.removeAttribute('disabled');
+                } else {
+                    btn.classList.add('disabled-action');
+                    btn.setAttribute('disabled', 'true');
+                }
+            });
+
+            addReparacionBtn.classList.remove('disabled-action');
+            addReparacionBtn.removeAttribute('disabled');
+            document.querySelectorAll('#reparaciones-tbody .edit-reparacion-btn, #reparaciones-tbody .delete-reparacion-btn').forEach(btn => {
+                btn.classList.remove('disabled-action');
+                btn.removeAttribute('disabled');
+            });
+        }
+        // --- FUNCIONES DE IMAGEN ---
+        async function uploadImage(file, bucketName, filePath) {
+            try {
+                const { data, error } = await supabase.storage
+                    .from(bucketName)
+                    .upload(filePath, file, {
+                        cacheControl: '3600',
+                        upsert: true
+                    });
+
+                if (error) {
+                    throw error;
+                }
+
+                const { data: publicUrlData } = supabase.storage
+                    .from(bucketName)
+                    .getPublicUrl(filePath);
+
+                return publicUrlData.publicUrl;
+
+            } catch (error) {
+                console.error("Error al subir imagen:", error.message);
+                alert(`Error al subir imagen: ${error.message}`);
+                return null;
+            }
+        }
+
+         function openImageViewer(imageUrl) {
+        imageViewerContent.src = imageUrl;
+        imageViewerModal.classList.remove('hidden');
+    }
+
+        function closeImageViewer() {
+        imageViewerModal.classList.add('hidden');
+        imageViewerContent.src = '#';
+    }    
+
+        // --- FUNCIONES DEL MÓDULO DE INVENTARIO ---
+        async function CargarYMostrarProductos() {
+            productosTbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">Cargando...</td></tr>';
+            const { data, error } = await supabase.from('productos').select('*').order('nombre', { ascending: true });
+            if (error) { productosTbody.innerHTML = '<tr><td colspan="6" class="text-center text-red-500">Error</td></tr>'; return; }
+            productosTbody.innerHTML = '';
+            if (data.length === 0) { productosTbody.innerHTML = '<tr><td colspan="6" class="text-center">No hay productos.</td></tr>'; return; }
+            data.forEach(p => {
+                const tr = document.createElement('tr');
+                const imageUrlHtml = p.image_url ? `<img src="${p.image_url}" alt="Producto" class="image-preview w-16 h-16 object-cover rounded-md cursor-pointer" data-full-src="${p.image_url}">` : '<i class="fas fa-image text-gray-400 text-3xl"></i>';
+                tr.innerHTML = `
+                    <td class="px-6 py-4">${imageUrlHtml}</td>
+                    <td class="px-6 py-4"><div class="font-medium">${p.nombre}</div></td>
+                    <td class="px-6 py-4">${p.sku||'N/A'}</td>
+                    <td class="px-6 py-4">$${p.precio}</td>
+                    <td class="px-6 py-4">${p.cantidad}</td>
+                    <td class="px-6 py-4 text-right">
+                        <a href="#" class="text-indigo-600 edit-btn" data-id="${p.id}">Editar</a>
+                        <a href="#" class="text-red-600 ml-4 delete-btn" data-id="${p.id}">Eliminar</a>
+                    </td>`;
+                productosTbody.appendChild(tr);
+            });
+            productosTbody.querySelectorAll('.image-preview').forEach(img => {
+                img.addEventListener('click', (e) => {
+                    const fullSrc = e.target.dataset.fullSrc;
+                    if (fullSrc) {
+                        openImageViewer(fullSrc);
+                    }
+                });
+            });
+            updateProductAdminUI();
+        }
+
+        async function handleEditProduct(id) {
+            if (!isProductAdminMode) {
+                alert('No tienes permisos para editar productos. Introduce la clave de habilitación.');
+                return;
+            }
+            const { data: p, error } = await supabase.from('productos').select('*').eq('id', id).single();
+            if (error) return;
+            document.getElementById('producto-id').value = p.id;
+            document.getElementById('producto-nombre').value = p.nombre;
+            document.getElementById('producto-sku').value = p.sku;
+            document.getElementById('producto-precio').value = p.precio;
+            document.getElementById('producto-cantidad').value = p.cantidad;
+            document.getElementById('producto-modal-title').textContent = 'Editar Producto';
+
+            if (p.image_url) {
+                productoImagenPreview.src = p.image_url;
+                productoImagenPreview.classList.remove('hidden');
+            } else {
+                productoImagenPreview.classList.add('hidden');
+                productoImagenPreview.src = '#';
+            }
+            productoImagenInput.value = '';
+
+            productModal.classList.remove('hidden');
+        }
+        
+        // --- FUNCIONES DEL MÓDULO DE REPARACIONES ---
+        function agregarFilaReparacion(r, alPrincipio = false) {
+            const tr = document.createElement('tr');
+            const fecha = new Date(r.creado_en).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const imageUrlHtml = r.image_url ? `<img src="${r.image_url}" alt="Dispositivo" class="image-preview w-16 h-16 object-cover rounded-md cursor-pointer" data-full-src="${r.image_url}">` : '<i class="fas fa-image text-gray-400 text-3xl"></i>';
+            tr.innerHTML = `
+                <td class="px-6 py-4">${imageUrlHtml}</td>
+                <td class="px-6 py-4"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">${r.folio}</span></td>
+                <td class="px-6 py-4">${fecha}</td>
+                <td class="px-6 py-4">${r.cliente_nombre}</td>
+                <td class="px-6 py-4">${r.dispositivo_marca}</td>
+                <td class="px-6 py-4"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">${r.estado}</span></td>
+                <td class="px-6 py-4 text-right">
+                    <a href="#" class="text-indigo-600 edit-reparacion-btn" data-id="${r.id}">Editar</a>
+                    <a href="#" class="text-red-600 ml-4 delete-reparacion-btn" data-id="${r.id}">Eliminar</a>
+                    <button class="ml-4 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-1 px-2 rounded text-xs print-reparacion-inline-btn" data-id="${r.id}"><i class="fas fa-print"></i></button>
+                </td>`;
+            if (alPrincipio) reparacionesTbody.prepend(tr); else reparacionesTbody.appendChild(tr);
+        }
+        async function CargarYMostrarReparaciones() {
+            reparacionesTbody.innerHTML = '<tr><td colspan="7" class="text-center">Cargando...</td></tr>';
+            const { data, error } = await supabase.from('reparaciones').select('*').order('folio', { ascending: false });
+            if (error) { reparacionesTbody.innerHTML = '<tr><td colspan="7" class="text-center text-red-500">Error</td></tr>'; return; }
+            reparacionesTbody.innerHTML = '';
+            if (data.length === 0) { reparacionesTbody.innerHTML = '<tr><td colspan="7" class="text-center">No hay reparaciones.</td></tr>'; return; }
+            data.forEach(r => agregarFilaReparacion(r));
+            reparacionesTbody.querySelectorAll('.image-preview').forEach(img => {
+                img.addEventListener('click', (e) => {
+                    const fullSrc = e.target.dataset.fullSrc;
+                    if (fullSrc) {
+                        openImageViewer(fullSrc);
+                    }
+                });
+            });
+            reparacionesTbody.querySelectorAll('.print-reparacion-inline-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    await imprimirTicketReparacion(e.target.dataset.id);
+                });
+            });
+
+            addReparacionBtn.classList.remove('disabled-action');
+            addReparacionBtn.removeAttribute('disabled');
+            document.querySelectorAll('#reparaciones-tbody .edit-reparacion-btn, #reparaciones-tbody .delete-reparacion-btn').forEach(btn => {
+                btn.classList.remove('disabled-action');
+                btn.removeAttribute('disabled');
+            });
+        }
+        async function handleEditReparacion(id) {
+            const { data: r, error } = await supabase.from('reparaciones').select('*').eq('id', id).single();
+            if (error) return;
+            document.getElementById('reparacion-id').value = r.id;
+            document.getElementById('cliente-nombre').value = r.cliente_nombre;
+            document.getElementById('cliente-telefono').value = r.cliente_telefono; 
+            document.getElementById('dispositivo-marca').value = r.dispositivo_marca;
+            document.getElementById('problema-descripcion').value = r.problema_descripcion;
+            document.getElementById('costo-reparacion').value = r.costo_reparacion;
+            document.getElementById('estado-reparacion').value = r.estado;
+            document.getElementById('reparacion-modal-title').textContent = 'Editar Reparación';
+
+            if (r.image_url) {
+                reparacionImagenPreview.src = r.image_url;
+                reparacionImagenPreview.classList.remove('hidden');
+            } else {
+                reparacionImagenPreview.classList.add('hidden');
+                reparacionImagenPreview.src = '#';
+            }
+            reparacionImagenInput.value = '';
+
+            reparacionModal.classList.remove('hidden');
+            printReparacionTicketBtn.dataset.reparacionId = id;
+        }
+
+        // --- FUNCIONES DEL MÓDULO DE VENTAS ---
+        async function CargarProductosParaVenta() {
+            const listaVenta = document.getElementById('productos-list-venta');
+            listaVenta.innerHTML = `<p class="text-center">Cargando...</p>`;
+            const { data, error } = await supabase.from('productos').select('*').gt('cantidad', 0).order('nombre');
+            if (error) { listaVenta.innerHTML = `<p class="text-red-500">Error</p>`; return; }
+            productosDisponibles = data;
+            listaVenta.innerHTML = '';
+            if (data.length === 0) { listaVenta.innerHTML = `<p class="text-gray-500 text-center py-8">No hay productos con stock.</p>`; return; }
+            data.forEach(p => { 
+                const div = document.createElement('div'); 
+                div.className = 'flex items-center justify-between p-4'; 
+                const imageUrlHtml = p.image_url ? `<img src="${p.image_url}" alt="Producto" class="w-10 h-10 object-cover rounded-md mr-2 inline-block cursor-pointer" data-full-src="${p.image_url}">` : '<i class="fas fa-box text-gray-400 text-xl mr-2"></i>';
+                div.innerHTML = `
+                    <div class="flex items-center">
+                        ${imageUrlHtml}
+                        <div>
+                            <p class="font-semibold">${p.nombre}</p>
+                            <p class="text-sm text-gray-500">Precio: $${p.precio} - Stock: ${p.cantidad}</p>
+                        </div>
+                    </div>
+                    <button class="add-to-cart-btn bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-sm" data-id="${p.id}">Añadir</button>`; 
+                listaVenta.appendChild(div); 
+            });
+            productosListVenta.querySelectorAll('.image-preview').forEach(img => {
+                img.addEventListener('click', (e) => {
+                    const fullSrc = e.target.dataset.fullSrc;
+                    if (fullSrc) {
+                        openImageViewer(fullSrc);
+                    }
+                });
+            });
+        }
+
+        function renderizarCarrito() {
+            const cartItemsContainer = document.getElementById('cart-items');
+            const cartEmptyMsg = document.getElementById('cart-empty');
+            const cartSummary = document.getElementById('cart-summary');
+            const cartSubtotalEl = document.getElementById('cart-subtotal');
+            const discountPercentage = parseFloat(discountPercentageInput.value) || 0;
+
+            cartItemsContainer.innerHTML = '';
+            if (cart.length === 0) {
+                cartEmptyMsg.style.display = 'block';
+                cartSummary.style.display = 'none';
+            } else {
+                cartEmptyMsg.style.display = 'none';
+                cartSummary.style.display = 'block';
+            }
+
+            let subtotal = 0;
+            cart.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'py-3 flex justify-between items-center';
+                div.dataset.id = item.id;
+                const imageUrlHtml = item.image_url ? `<img src="${item.image_url}" alt="Producto" class="w-8 h-8 object-cover rounded-md mr-2 inline-block cursor-pointer" data-full-src="${item.image_url}">` : '';
+                div.innerHTML = `
+                    <div class="flex items-center">
+                        ${imageUrlHtml}
+                        <div>
+                            <p class="font-semibold text-sm">${item.nombre}</p>
+                            <p class="text-xs text-gray-500">$${item.precio} x ${item.cantidad}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button class="cart-btn-remove bg-red-100 text-red-700 w-6 h-6 rounded-full">-</button>
+                        <span>${item.cantidad}</span>
+                        <button class="cart-btn-add bg-green-100 text-green-700 w-6 h-6 rounded-full">+</button>
+                    </div>`;
+                cartItemsContainer.appendChild(div);
+                subtotal += item.precio * item.cantidad;
+            });
+
+            const totalConDescuento = subtotal * (1 - (discountPercentage / 100));
+
+            cartSubtotalEl.textContent = `$${subtotal.toFixed(2)}`;
+            cartTotalEl.textContent = `$${totalConDescuento.toFixed(2)}`;
+
+            cartItemsContainer.querySelectorAll('.image-preview').forEach(img => {
+                img.addEventListener('click', (e) => {
+                    const fullSrc = e.target.dataset.fullSrc;
+                    if (fullSrc) {
+                        openImageViewer(fullSrc);
+                    }
+                });
+            });
+        }
+
+        function agregarAlCarrito(productoId) { const productoEnStock = productosDisponibles.find(p => p.id === productoId); if (!productoEnStock) return; const itemEnCarrito = cart.find(item => item.id === productoId); if (itemEnCarrito) { if (itemEnCarrito.cantidad < productoEnStock.cantidad) itemEnCarrito.cantidad++; else alert('No hay más stock disponible.'); } else { cart.push({ ...productoEnStock, cantidad: 1 }); } renderizarCarrito(); }
+        function manejarCantidadCarrito(productoId, cambio) { const itemEnCarrito = cart.find(item => item.id === productoId); if (!itemEnCarrito) return; const productoEnStock = productosDisponibles.find(p => p.id === productoId); const nuevaCantidad = itemEnCarrito.cantidad + cambio; if (cambio > 0 && nuevaCantidad > productoEnStock.cantidad) { alert('No hay más stock disponible.'); return; } if (nuevaCantidad <= 0) cart = cart.filter(item => item.id !== productoId); else itemEnCarrito.cantidad = nuevaCantidad; renderizarCarrito(); }
+        
+        function imprimirTicket(venta) {
+            const ticketContainer = document.getElementById('ticket-imprimible');
+            const now = new Date();
+            const fechaHoraActual = now.toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+            let itemsHtml = '';
+            venta.items.forEach(item => {
+                itemsHtml += `
+                    <tr>
+                        <td style="padding: 2px 0; vertical-align: top;">${item.cantidad}x</td>
+                        <td style="padding: 2px 0;">${item.nombre}</td>
+                        <td style="padding: 2px 0; text-align: right; vertical-align: top;">$${(item.precio * item.cantidad).toFixed(2)}</td>
+                    </tr>`;
+            });
+
+            const subtotalVenta = venta.items.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+            const descuentoAplicado = venta.discount_percentage ? `${venta.discount_percentage}%` : '0%';
+            const totalFinal = venta.total_after_discount !== undefined ? venta.total_after_discount.toFixed(2) : venta.total.toFixed(2);
+
+
+            ticketContainer.innerHTML = `
+                <div style="font-family: 'Courier New', monospace; font-size: 10px; width: 58mm; padding: 5px; text-align: center;">
+                    <h2 style="font-size: 1.5em; font-weight: bold; margin-bottom: 2px;">Rep<span style="color: #dc2626;">Cell</span> Salamanca</h2>
+                    <p style="font-size: 0.9em; margin-bottom: 5px;">Sistema de Gestión</p>
+                    <p style="font-size: 0.8em;">Artesano #330 Col. Infonavit 1</p>
+                    <p style="font-size: 0.8em;">Salamanca, Gto.</p>
+                    <p style="font-size: 0.8em; margin-bottom: 5px;">Tel: 4641685632 / 4641685632</p>
+                    <p style="font-size: 0.8em; border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px;">TICKET DE VENTA</p>
+
+                    <p style="text-align: left;">Fecha: ${fechaHoraActual}</p>
+                    <p style="text-align: left;">Folio Venta: ${venta.id.substring(0, 8).toUpperCase()}</p>
+                    <br>
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 5px;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid #000;">
+                                <th style="text-align: left; width: 15%;">Cant</th>
+                                <th style="text-align: left; width: 55%;">Producto</th>
+                                <th style="text-align: right; width: 30%;">Importe</th>
+                            </tr>
+                        </thead>
+                        <tbody>${itemsHtml}</tbody>
+                    </table>
+                    <div style="border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px; text-align: right;">
+                        <p style="font-size: 1em;">Subtotal: $${subtotalVenta.toFixed(2)}</p>
+                        <p style="font-size: 1em;">Descuento: ${descuentoAplicado}</p>
+                        <p style="font-size: 1.3em; font-weight: bold;">TOTAL: $${totalFinal}</p>
+                    </div>
+                    <br>
+                    <p style="font-size: 0.8em; text-align: center; margin-bottom: 5px;">Después de 15 días, no nos hacemos responsables por mercancía olvidada o no reclamada.</p>
+                    <p style="font-size: 0.9em; text-align: center; margin-top: 10px;">¡Gracias por su compra!</p>
+                    <br>
+                </div>`;
+            window.print();
+        }
+        
+        // --- NUEVA FUNCIÓN: IMPRIMIR TICKET DE REPARACIÓN ---
+        async function imprimirTicketReparacion(reparacionId) { // <<-- Aquí el cambio: Añadir 'async'
+            const { data: r, error } = await supabase.from('reparaciones').select('*').eq('id', reparacionId).single();
+            if (error || !r) {
+                console.error("Error al cargar datos de reparación para el ticket:", error);
+                alert("No se pudo generar el ticket de reparación. Error al cargar datos.");
+                return;
+            }
+
+            const ticketContainer = document.getElementById('ticket-imprimible');
+            const now = new Date();
+            const fechaHoraActual = now.toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const fechaRegistro = new Date(r.creado_en).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+            ticketContainer.innerHTML = `
+                <div style="font-family: 'Courier New', monospace; font-size: 10px; width: 58mm; padding: 5px; text-align: center;">
+                    <h2 style="font-size: 1.5em; font-weight: bold; margin-bottom: 2px;">Rep<span style="color: #dc2626;">Cell</span> Salamanca</h2>
+                    <p style="font-size: 0.9em; margin-bottom: 5px;">Sistema de Gestión</p>
+                    <p style="font-size: 0.8em;">Artesano #330 Col. Infonavit 1</p>
+                    <p style="font-size: 0.8em;">Salamanca, Gto.</p>
+                    <p style="font-size: 0.8em; margin-bottom: 5px;">Tel: 4641685632 / 4641685632</p>
+                    <p style="font-size: 0.8em; border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px;">TICKET DE SERVICIO</p>
+
+                    <p style="text-align: left;">Fecha Impresión: ${fechaHoraActual}</p>
+                    <p style="text-align: left;">Folio Servicio: <strong style="font-size: 1.1em;">${r.folio}</strong></p>
+                    <p style="text-align: left;">Fecha Registro: ${fechaRegistro}</p>
+                    <br>
+                    <p style="text-align: left;">Cliente: ${r.cliente_nombre}</p>
+                    <p style="text-align: left;">Tel. Cliente: ${r.cliente_telefono || 'N/A'}</p>
+                    <br>
+                    <p style="text-align: left;">Dispositivo: ${r.dispositivo_marca}</p>
+                    <p style="text-align: left;">Problema: ${r.problema_descripcion}</p>
+                    <p style="text-align: left;">Costo Est.: $${parseFloat(r.costo_reparacion || 0).toFixed(2)}</p>
+                    <p style="text-align: left;">Estado: ${r.estado}</p>
+                    <br>
+                    <p style="font-size: 0.9em; border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px; font-weight: bold;">AVISO IMPORTANTE:</p>
+                    <p style="font-size: 0.8em; text-align: center; margin-bottom: 5px;">Después de 15 días de la fecha de servicio, no nos hacemos responsables por equipos olvidados o no reclamados.</p>
+
+                    <p style="font-size: 0.9em; border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px; font-weight: bold;">POLÍTICA DE GARANTÍA:</p>
+                    <p style="font-size: 0.8em; text-align: left;">Esta reparación tiene 30 días de garantía solo por la misma falla y las piezas que nosotros cambiamos.</p>
+                    <p style="font-size: 0.8em; text-align: left;">❌ No cubre:</p>
+                    <ul style="font-size: 0.8em; text-align: left; margin-left: 10px; list-style-type: none; padding-left: 0;">
+                        <li>- Golpes, agua, caídas o mal uso.</li>
+                        <li>- Si alguien más lo abre o mete mano.</li>
+                        <li>- Falla nueva o diferente.</li>
+                        <li>- Problemas de software, batería inflada o cortos externos.</li>
+                    </ul>
+                    <p style="font-size: 0.8em; text-align: left;">📌 Para hacer válida la garantía:</p>
+                    <ul style="font-size: 0.8em; text-align: left; margin-left: 10px; list-style-type: none; padding-left: 0;">
+                        <li>- Trae tu ticket.</li>
+                        <li>- No lo abras, no lo mojes, no lo golpees.</li>
+                        <li>- Regrésalo dentro de los 30 días.</li>
+                    </ul>
+                    <p style="font-size: 0.9em; text-align: center; font-weight: bold; margin-top: 5px;">Sin ticket, sin garantía.</p>
+                    <p style="font-size: 0.9em; text-align: center; font-weight: bold;">No se hacen devoluciones.</p>
+                    <p style="font-size: 0.9em; text-align: center; margin-top: 10px;">¡Gracias por tu confianza!</p>
+                    <br>
+                </div>`;
+            window.print();
+        }
+
+        async function procesarVenta() {
+            const subtotalVenta = cart.reduce((s, i) => s + i.precio * i.cantidad, 0);
+            const discountPercentage = parseFloat(discountPercentageInput.value) || 0;
+            const totalFinalVenta = subtotalVenta * (1 - (discountPercentage / 100));
+
+            if (cart.length === 0 || !window.confirm(`Total de la venta: $${totalFinalVenta.toFixed(2)}. ¿Continuar?`)) return;
+
+            const ventaItems = cart.map(item => ({ id: item.id, nombre: item.nombre, precio: item.precio, cantidad: item.cantidad }));
+            
+            const { data: ventaGuardada, error: ventaError } = await supabase.from('ventas').insert([
+                { 
+                    total: subtotalVenta,
+                    discount_percentage: discountPercentage,
+                    total_after_discount: totalFinalVenta,
+                    items: ventaItems 
+                }
+            ]).select().single();
+
+            if (ventaError) { console.error("Error al guardar venta:", ventaError); alert("Error al registrar la venta."); return; }
+            
+            for (const item of cart) {
+                const { error: stockError } = await supabase.rpc('actualizar_stock', { producto_id: item.id, cantidad_vendida: item.cantidad });
+                if (stockError) alert(`¡ATENCIÓN! Error al actualizar stock de ${item.nombre}. Revisar manualmente.`);
+            }
+            alert("¡Venta registrada con éxito!");
+            imprimirTicket(ventaGuardada);
+            cart = [];
+            renderizarCarrito();
+            CargarProductosParaVenta();
+            CargarYMostrarVentasHistoricas();
+        }
+        
+        async function CargarYMostrarVentasHistoricas() {
+            ventasHistoricasTbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">Cargando historial de ventas...</td></tr>';
+            const { data, error } = await supabase.from('ventas').select('*').order('creado_en', { ascending: false });
+            if (error) { ventasHistoricasTbody.innerHTML = '<tr><td colspan="5" class="text-center text-red-500">Error al cargar ventas.</td></tr>'; return; }
+            ventasHistoricasTbody.innerHTML = '';
+            if (data.length === 0) { ventasHistoricasTbody.innerHTML = '<tr><td colspan="5" class="text-center">No hay ventas registradas.</td></tr>'; return; }
+
+            data.forEach(venta => {
+                const tr = document.createElement('tr');
+                const fecha = new Date(venta.creado_en).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                const itemsList = venta.items.map(item => `${item.cantidad}x ${item.nombre}`).join(', ');
+                const totalAfterDiscount = venta.total_after_discount !== null && venta.total_after_discount !== undefined ? venta.total_after_discount : venta.total;
+const displayTotal = parseFloat(totalAfterDiscount || 0).toFixed(2);
+
+                tr.innerHTML = `
+                    <td class="px-6 py-4"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">${venta.id.substring(0, 8).toUpperCase()}</span></td>
+                    <td class="px-6 py-4">${fecha}</td>
+                    <td class="px-6 py-4 text-sm">${itemsList}</td>
+                    <td class="px-6 py-4">$${displayTotal}</td>
+                    <td class="px-6 py-4 text-right">
+                        <button class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-2 rounded text-xs print-venta-ticket-btn" data-id="${venta.id}"><i class="fas fa-print"></i></button>
+                    </td>`;
+                ventasHistoricasTbody.appendChild(tr);
+            });
+
+            ventasHistoricasTbody.querySelectorAll('.print-venta-ticket-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    const ventaId = e.target.dataset.id;
+                    const { data: ventaData, error: ventaError } = await supabase.from('ventas').select('*').eq('id', ventaId).single();
+                    if (!ventaError && ventaData) {
+                        imprimirTicket(ventaData);
+                    } else {
+                        console.error("Error al cargar datos de venta para reimprimir:", ventaError);
+                        alert("No se pudo cargar la venta para reimprimir el ticket.");
+                    }
+                });
+            });
+        }
+
+
+ // --- FUNCIONES DE REPORTES ---
+    /**
+     * Obtiene la fecha de hoy en formato YYYY-MM-DD
+     * @returns {string}
+     */
+    function getTodayDateString() {
+        return new Date().toISOString().split('T')[0];
+    }
+
+    /**
+     * Obtiene el rango de la semana actual (Lunes a Domingo)
+     * @returns {{inicio: string, fin: string}}
+     */
+    function getWeekRange() {
+        const hoy = new Date();
+        const diaSemana = hoy.getDay(); // 0=Domingo, 1=Lunes, ...
+        const primerDia = new Date(hoy);
+        // Ajuste para que la semana empiece en Lunes
+        primerDia.setDate(hoy.getDate() - diaSemana + (diaSemana === 0 ? -6 : 1));
+
+        const ultimoDia = new Date(primerDia);
+        ultimoDia.setDate(primerDia.getDate() + 6);
+
+        return {
+            inicio: primerDia.toISOString().split('T')[0],
+            fin: ultimoDia.toISOString().split('T')[0],
+        };
+    }
+
+    /**
+     * Genera un PDF a partir de un elemento HTML y lo descarga
+     * @param {HTMLElement} elemento - El elemento HTML que se convertirá en PDF.
+     * @param {string} nombreArchivo - El nombre del archivo PDF a descargar.
+     */
+    function generarPDF(elemento, nombreArchivo) {
+        console.log("Generando PDF:", nombreArchivo);
+        const opt = {
+            margin:       0.5,
+            filename:     nombreArchivo,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2 },
+            jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+        };
+        // Usamos la librería html2pdf que añadimos al <head>
+        html2pdf().set(opt).from(elemento).save();
+    }
+
+        // --- INICIALIZACIÓN DE LA APP ---
+        function initializeApp() {
+            logoutBtn.addEventListener('click', handleLogout);
+            toggleAuthLink.addEventListener('click', e => { e.preventDefault(); toggleAuthMode(); });
+            loginForm.addEventListener('submit', e => { e.preventDefault(); clearAuthMessages(); const email = document.getElementById('login-email').value.trim(); const password = document.getElementById('login-password').value; if (!email || !password) { showAuthError("El correo y la contraseña no pueden estar vacíos."); return; } if (isRegisterMode) handleRegister(email, password); else handleLogin(email, password); });
+            
+            // Event Listener para la clave de administrador de PRODUCTOS
+            adminKeyInputInventario.addEventListener('input', (e) => checkProductAdminKey(e.target.value, adminStatusInventario));
+            // Evento para Enter en el input de la clave
+            adminKeyInputInventario.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault(); // Prevenir el envío del formulario si hubiera uno
+                    checkProductAdminKey(adminKeyInputInventario.value, adminStatusInventario);
+                }
+            });
+            // Evento para el botón de Activar
+            activateProductAdminBtn.addEventListener('click', () => {
+                checkProductAdminKey(adminKeyInputInventario.value, adminStatusInventario);
+            });
+
+
+            menuInventarioBtn.addEventListener('click', () => { showView('view-inventario'); CargarYMostrarProductos(); });
+            menuReparacionesBtn.addEventListener('click', () => { showView('view-reparaciones'); CargarYMostrarReparaciones(); });
+            menuVentasBtn.addEventListener('click', () => { showView('view-ventas'); cart = []; renderizarCarrito(); CargarProductosParaVenta(); CargarYMostrarVentasHistoricas(); });
+            menuReportesBtn.addEventListener('click', () => { showView('view-reportes'); document.getElementById('fecha-fin').value = getTodayDateString(); document.getElementById('fecha-inicio').value = getTodayDateString(); });
+            backToMenuBtns.forEach(btn => btn.addEventListener('click', () => showView('view-main-menu')));
+            
+            // Product Modal Handlers
+            addProductBtn.addEventListener('click', () => {
+                if (!isProductAdminMode) {
+                    alert('No tienes permisos para agregar productos. Introduce la clave de habilitación.');
+                    return;
+                }
+                productForm.reset();
+                document.getElementById('producto-id').value = '';
+                document.getElementById('producto-modal-title').textContent = 'Agregar Nuevo Producto';
+                productoImagenPreview.classList.add('hidden'); 
+                productoImagenPreview.src = '#';
+                productModal.classList.remove('hidden');
+            });
+            cancelProductBtn.addEventListener('click', () => { productModal.classList.add('hidden'); });
+            productoImagenInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        productoImagenPreview.src = e.target.result;
+                        productoImagenPreview.classList.remove('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    productoImagenPreview.classList.add('hidden');
+                    productoImagenPreview.src = '#';
+                }
+            });
+
+            productForm.addEventListener('submit', async e => {
+                e.preventDefault();
+                if (!isProductAdminMode) {
+                    alert('No tienes permisos para guardar productos.');
+                    return;
+                }
+
+                const id = document.getElementById('producto-id').value;
+                const file = productoImagenInput.files[0];
+                let imageUrl = '';
+
+                if (id && !file) {
+                    const { data: existingProduct } = await supabase.from('productos').select('image_url').eq('id', id).single();
+                    if (existingProduct) {
+                        imageUrl = existingProduct.image_url;
+                    }
+                } else if (file) {
+                    const fileExtension = file.name.split('.').pop();
+                    const fileName = `${crypto.randomUUID()}.${fileExtension}`; 
+                    const bucketName = 'product-images'; 
+                    imageUrl = await uploadImage(file, bucketName, fileName);
+                    if (!imageUrl) {
+                        alert('No se pudo subir la imagen del producto.');
+                        return;
+                    }
+                }
+
+                const datos = {
+                    nombre: document.getElementById('producto-nombre').value,
+                    sku: document.getElementById('producto-sku').value,
+                    precio: parseFloat(document.getElementById('producto-precio').value),
+                    cantidad: parseInt(document.getElementById('producto-cantidad').value),
+                    image_url: imageUrl
+                };
+
+                let error;
+                if (id) {
+                    const { error: uError } = await supabase.from('productos').update(datos).eq('id', id);
+                    error = uError;
+                } else {
+                    const { error: iError } = await supabase.from('productos').insert([datos]);
+                    error = iError;
+                }
+
+                if (error) { alert('Error al guardar el producto.'); console.error(error); }
+                else {
+                    alert('Producto guardado con éxito!');
+                    productModal.classList.add('hidden');
+                    CargarYMostrarProductos();
+                }
+            });
+
+            productosTbody.addEventListener('click', async e => {
+                if (e.target.classList.contains('edit-btn')) {
+                    e.preventDefault();
+                    handleEditProduct(e.target.dataset.id);
+                }
+                if (e.target.classList.contains('delete-btn')) {
+                    e.preventDefault();
+                    if (!isProductAdminMode) {
+                        alert('No tienes permisos para eliminar productos. Introduce la clave de habilitación.');
+                        return;
+                    }
+                    if (window.confirm('¿Seguro que quieres eliminar este producto?')) {
+                        const productId = e.target.dataset.id;
+                        const { data: productToDelete } = await supabase.from('productos').select('image_url').eq('id', productId).single();
+                        
+                        if (productToDelete && productToDelete.image_url) {
+                            const fileName = productToDelete.image_url.split('/').pop();
+                            const { error: storageError } = await supabase.storage.from('product-images').remove([fileName]);
+                            if (storageError) console.error("Error al eliminar imagen de Storage:", storageError);
+                        }
+
+                        const { error } = await supabase.from('productos').delete().eq('id', productId);
+                        if (error) alert('Error al eliminar el producto.');
+                        else { alert('Producto eliminado!'); CargarYMostrarProductos(); }
+                    }
+                }
+            });
+
+            // Repair Modal Handlers
+            addReparacionBtn.addEventListener('click', () => {
+                reparacionForm.reset();
+                document.getElementById('reparacion-id').value = '';
+                document.getElementById('reparacion-modal-title').textContent = 'Registrar Nueva Reparación';
+                reparacionImagenPreview.classList.add('hidden'); 
+                reparacionImagenPreview.src = '#';
+                reparacionModal.classList.remove('hidden');
+            });
+            cancelReparacionBtn.addEventListener('click', () => { reparacionModal.classList.add('hidden'); });
+            reparacionImagenInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        reparacionImagenPreview.src = e.target.result;
+                        reparacionImagenPreview.classList.remove('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    productoImagenPreview.classList.add('hidden');
+                    productoImagenPreview.src = '#';
+                }
+            });
+
+            reparacionForm.addEventListener('submit', async e => {
+                e.preventDefault();
+                const id = document.getElementById('reparacion-id').value;
+                const file = reparacionImagenInput.files[0];
+                let imageUrl = '';
+
+                if (id && !file) {
+                    const { data: existingRepair } = await supabase.from('reparaciones').select('image_url').eq('id', id).single();
+                    if (existingRepair) {
+                        imageUrl = existingRepair.image_url;
+                    }
+                } else if (file) {
+                    const fileExtension = file.name.split('.').pop();
+                    const fileName = `${crypto.randomUUID()}.${fileExtension}`; 
+                    const bucketName = 'repair-images'; 
+                    imageUrl = await uploadImage(file, bucketName, fileName);
+                    if (!imageUrl) {
+                        alert('No se pudo subir la imagen del dispositivo.');
+                        return;
+                    }
+                }
+
+                const datos = {
+                    cliente_nombre: document.getElementById('cliente-nombre').value,
+                    cliente_telefono: document.getElementById('cliente-telefono').value,
+                    dispositivo_marca: document.getElementById('dispositivo-marca').value,
+                    problema_descripcion: document.getElementById('problema-descripcion').value,
+                    costo_reparacion: parseFloat(document.getElementById('costo-reparacion').value) || 0,
+                    estado: document.getElementById('estado-reparacion').value,
+                    image_url: imageUrl
+                };
+
+                let error;
+                if (id) {
+                    const { error: uError } = await supabase.from('reparaciones').update(datos).eq('id', id);
+                    error = uError;
+                } else {
+                    const { data, error: iError } = await supabase.from('reparaciones').insert([datos]).select().single();
+                    error = iError;
+                    if (!error) {
+                        const firstRow = reparacionesTbody.querySelector('td[colspan="7"]'); 
+                        if (firstRow) reparacionesTbody.innerHTML = '';
+                        agregarFilaReparacion(data, true);
+                    }
+                }
+
+                if (error) { alert('Error al guardar la reparación.'); console.error(error); }
+                else {
+                    alert('Reparación guardada con éxito!');
+                    reparacionModal.classList.add('hidden');
+                    if(id) CargarYMostrarReparaciones(); 
+                }
+            });
+
+            reparacionesTbody.addEventListener('click', async e => {
+                if (e.target.classList.contains('edit-reparacion-btn')) {
+                    e.preventDefault();
+                    handleEditReparacion(e.target.dataset.id); 
+                }
+                if (e.target.classList.contains('delete-reparacion-btn')) {
+                    e.preventDefault();
+                    if (window.confirm('¿Seguro que quieres eliminar esta reparación?')) {
+                        const repairId = e.target.dataset.id;
+                        const { data: repairToDelete } = await supabase.from('reparaciones').select('image_url').eq('id', repairId).single();
+
+                        if (repairToDelete && repairToDelete.image_url) {
+                            const fileName = repairToDelete.image_url.split('/').pop();
+                            const { error: storageError } = await supabase.storage.from('repair-images').remove([fileName]);
+                            if (storageError) console.error("Error al eliminar imagen de Storage:", storageError);
+                        }
+
+                        const { error } = await supabase.from('reparaciones').delete().eq('id', repairId);
+                        if (error) alert('Error al eliminar la reparación.');
+                        else { alert('Reparación eliminada!'); CargarYMostrarReparaciones(); }
+                    }
+                }
+            });
+            
+            printReparacionTicketBtn.addEventListener('click', async () => {
+                const reparacionId = printReparacionTicketBtn.dataset.reparacionId;
+                if (reparacionId) {
+                    await imprimirTicketReparacion(reparacionId);
+                } else {
+                    alert('Selecciona una reparación para imprimir su ticket.');
+                }
+            });
+
+            document.getElementById('productos-list-venta').addEventListener('click', e => { 
+                if (e.target.classList.contains('image-preview') && e.target.dataset.fullSrc) {
+                    openImageViewer(e.target.dataset.fullSrc);
+                } else if (e.target.classList.contains('add-to-cart-btn')) {
+                    agregarAlCarrito(e.target.dataset.id);
+                }
+            });
+
+            document.getElementById('cart-items').addEventListener('click', e => { 
+                if (e.target.classList.contains('image-preview') && e.target.dataset.fullSrc) {
+                    openImageViewer(e.target.dataset.fullSrc);
+                } else {
+                    const parent = e.target.closest('.py-3'); 
+                    if (!parent) return; 
+                    const id = parent.dataset.id; 
+                    if (e.target.classList.contains('cart-btn-add')) manejarCantidadCarrito(id, 1); 
+                    if (e.target.classList.contains('cart-btn-remove')) manejarCantidadCarrito(id, -1);
+                }
+            });
+
+            discountPercentageInput.addEventListener('input', renderizarCarrito);
+
+
+            document.getElementById('process-sale-btn').addEventListener('click', procesarVenta);
+           
+            menuReportesBtn.addEventListener('click', () => {
+                showView('view-reportes');
+                const hoy = getTodayDateString();
+                document.getElementById('fecha-fin').value = hoy;
+                document.getElementById('fecha-inicio').value = hoy;
+            });
+
+            generarReporteBtn.addEventListener('click', async () => {
+                const fechaInicio = document.getElementById('fecha-inicio').value;
+                const fechaFin = document.getElementById('fecha-fin').value;
+                if (!fechaInicio || !fechaFin) { alert('Por favor, selecciona fechas.'); return; }
+
+                reporteTbody.innerHTML = '<tr><td colspan="3" class="text-center py-4">Generando...</td></tr>';
+                reporteSummary.innerHTML = '';
+
+                const { data, error } = await supabase.rpc('reporte_ventas_por_fecha', { fecha_inicio: fechaInicio, fecha_fin: fechaFin });
+                if (error) { console.error(error); reporteTbody.innerHTML = '<tr><td colspan="3" class="text-center text-red-500 py-4">Error</td></tr>'; return; }
+                
+                reporteTbody.innerHTML = '';
+                if (data.length === 0) { reporteTbody.innerHTML = '<tr><td colspan="3" class="text-center py-4">No hay ventas en estas fechas.</td></tr>'; return; }
+                
+                let granTotal = 0;
+                data.forEach(fila => {
+                    const tr = document.createElement('tr');
+                    const fecha = new Date(fila.fecha_venta).toLocaleDateString('es-MX', { timeZone: 'UTC' });
+                    const ingresos = parseFloat(fila.ingresos_totales).toFixed(2);
+                    granTotal += parseFloat(fila.ingresos_totales);
+                    tr.innerHTML = `<td class="px-6 py-4">${fecha}</td><td class="px-6 py-4 text-center">${fila.numero_de_ventas}</td><td class="px-6 py-4 text-right">$${ingresos}</td>`;
+                    reporteTbody.appendChild(tr);
+                });
+                reporteSummary.innerHTML = `<p>Mostrando reporte desde <span class="font-bold">${fechaInicio}</span> hasta <span class="font-bold">${fechaFin}</span>.</p><p>Ingreso Total del Período: <span class="font-bold text-xl text-green-600">$${granTotal.toFixed(2)}</span></p>`;
+            });
+
+            reporteDiarioVentasBtn.addEventListener('click', async () => {
+                const hoy = getTodayDateString();
+                const { data, error } = await supabase.rpc('reporte_ventas_por_fecha', { fecha_inicio: hoy, fecha_fin: hoy });
+                if (error || !data || data.length === 0) { alert('No hay ventas registradas hoy para generar un reporte.'); return; }
+                
+                const reporteData = data[0];
+                const ingresos = parseFloat(reporteData.ingresos_totales || 0).toFixed(2);
+                const numVentas = reporteData.numero_de_ventas || 0;
+                const reporteHtml = `<div style="padding:20px; font-family: sans-serif;"><h1>Reporte de Ventas del ${hoy}</h1><hr><p style="font-size: 1.2em;">Total de Ingresos: <span style="font-weight: bold;">$${ingresos}</span></p><p style="font-size: 1.2em;">Ventas Realizadas: <span style="font-weight: bold;">${numVentas}</span></p></div>`;
+                
+                generarPDF(document.getElementById('reporte-imprimible').innerHTML = reporteHtml, `Reporte_Ventas_${hoy}.pdf`);
+            });
+
+            reporteDiarioReparacionesBtn.addEventListener('click', async () => {
+                const hoy = getTodayDateString();
+                const { data, error } = await supabase.rpc('reporte_reparaciones_diario', { fecha_reporte: hoy });
+                if (error || !data || data.length === 0) { alert('No hay reparaciones registradas hoy para generar un reporte.'); return; }
+
+                let html = `<div style="padding:20px; font-family: sans-serif;"><h1>Reporte de Reparaciones del ${hoy}</h1><hr>`;
+                data.forEach(item => { html += `<p>${item.estado_reparacion}: <span style="font-weight: bold;">${item.cantidad}</span></p>`; });
+                html += `</div>`;
+                
+                generarPDF(document.getElementById('reporte-imprimible').innerHTML = html, `Reporte_Reparaciones_${hoy}.pdf`);
+            });
+
+            reporteSemanalReparacionesBtn.addEventListener('click', async () => {
+                const semana = getWeekRange();
+                const { data, error } = await supabase.rpc('reporte_reparaciones_semanal', { fecha_inicio: semana.inicio, fecha_fin: semana.fin });
+                if (error || !data || data.length === 0) { alert('No hay reparaciones registradas esta semana.'); return; }
+
+                let html = `<div style="padding:20px; font-family: sans-serif;"><h1>Reporte Semanal de Reparaciones</h1><p>(${semana.inicio} al ${semana.fin})</p><hr>`;
+                let totalReparaciones = 0;
+                data.forEach(item => {
+                    html += `<p>${item.estado_reparacion}: <span style="font-weight: bold;">${item.cantidad}</span></p>`;
+                    totalReparaciones += Number(item.cantidad);
+                });
+                html += `<hr><p style="font-size: 1.2em; font-weight: bold;">Total de Equipos Registrados: ${totalReparaciones}</p></div>`;
+                
+                generarPDF(document.getElementById('reporte-imprimible').innerHTML = html, `Reporte_Reparaciones_Semana_${semana.inicio}.pdf`);
+            });
+            
+            closeImageViewerBtn.addEventListener('click', closeImageViewer);
+
+            updateProductAdminUI();
+
+            supabase.auth.onAuthStateChange((_event, session) => { 
+                if (session) { 
+                    userGreetingEl.textContent = `Bienvenido, ${session.user.email}`; 
+                    showView('view-main-menu'); 
+                } else { 
+                    showView('view-auth'); 
+                } 
+                isProductAdminMode = false;
+                if (adminKeyInputInventario) adminKeyInputInventario.value = '';
+                checkProductAdminKey('', adminStatusInventario);
+            });
+        }
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+</body>
+</html>
