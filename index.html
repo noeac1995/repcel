@@ -902,18 +902,20 @@ const displayTotal = parseFloat(totalAfterDiscount || 0).toFixed(2);
      * @param {HTMLElement} elemento - El elemento HTML que se convertirá en PDF.
      * @param {string} nombreArchivo - El nombre del archivo PDF a descargar.
      */
-    function generarPDF(elemento, nombreArchivo) {
-        console.log("Generando PDF:", nombreArchivo);
-        const opt = {
-            margin:       0.5,
-            filename:     nombreArchivo,
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2 },
-            jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
-        };
-        // Usamos la librería html2pdf que añadimos al <head>
-        html2pdf().set(opt).from(elemento).save();
-    }
+    async function generarPDF(elemento, nombreArchivo) {
+    console.log("Generando PDF:", nombreArchivo);
+    const opt = {
+        margin:       0.5,
+        filename:     nombreArchivo,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2 },
+        jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+    };
+    
+    // Antes usábamos .save(), que intenta descargar directamente.
+    // Ahora usamos .output('dataurlnewwindow'), que abre el PDF en una nueva pestaña.
+    html2pdf().set(opt).from(elemento).output('dataurlnewwindow');
+}
 
         // --- INICIALIZACIÓN DE LA APP ---
         function initializeApp() {
