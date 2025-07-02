@@ -357,28 +357,32 @@
         // --- FUNCIONES DE AUTENTICACIÓN ---
         async function handleLogin(email, password) { const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) showAuthError("Correo o contraseña incorrectos."); }
         async function handleRegister(email, password) { const { error } = await supabase.auth.signUp({ email, password }); if (error) { error.message.includes("User already registered") ? showAuthError("Este correo ya está en uso.") : showAuthError(error.message); } else { showAuthSuccess("¡Registro exitoso! Revisa tu correo para confirmar tu cuenta."); } }
-        async function handleLogout() { await supabase.auth.signOut(); }
-
+       async function handleLogout() {
+    sessionStorage.removeItem('lastView'); // Limpiamos la vista guardada
+    await supabase.auth.signOut();
+}
         // --- FUNCIONES DE UI ---
         function showAuthError(message) { authSuccessEl.classList.add('hidden'); authErrorEl.textContent = message; authErrorEl.classList.remove('hidden'); }
         function showAuthSuccess(message) { authErrorEl.classList.add('hidden'); authSuccessEl.textContent = message; authSuccessEl.classList.remove('hidden'); }
         function clearAuthMessages() { authErrorEl.classList.add('hidden'); authSuccessEl.classList.add('hidden'); }
         function toggleAuthMode() { isRegisterMode = !isRegisterMode; clearAuthMessages(); loginForm.reset(); document.getElementById('auth-title').textContent = isRegisterMode ? 'Crear Nueva Cuenta' : 'Iniciar Sesión'; document.getElementById('auth-button').textContent = isRegisterMode ? 'Registrarse' : 'Entrar'; toggleAuthLink.textContent = isRegisterMode ? '¿Ya tienes cuenta? Inicia sesión.' : '¿No tienes cuenta? Regístrate aquí.'; }
-        function showView(viewId) {
-    // Primero, guardamos la vista que vamos a mostrar
-    if (viewId !== 'view-auth') { // No queremos guardar la vista de login
+    function showView(viewId) {
+    // No queremos guardar la vista de login, solo las de dentro de la app
+    if (viewId !== 'view-auth') {
         sessionStorage.setItem('lastView', viewId);
     }
 
-    // El resto de la función es igual
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    
     if (viewId === 'view-auth') {
         appContent.classList.add('hidden');
         document.getElementById('view-auth').classList.add('active');
     } else {
         appContent.classList.remove('hidden');
         const viewToShow = document.getElementById(viewId);
-        if (viewToShow) viewToShow.classList.add('active');
+        if (viewToShow) {
+            viewToShow.classList.add('active');
+        }
     }
 }
         
@@ -906,20 +910,18 @@ const displayTotal = parseFloat(totalAfterDiscount || 0).toFixed(2);
      * @param {HTMLElement} elemento - El elemento HTML que se convertirá en PDF.
      * @param {string} nombreArchivo - El nombre del archivo PDF a descargar.
      */
-    async function generarPDF(elemento, nombreArchivo) {
-    console.log("Generando PDF:", nombreArchivo);
-    const opt = {
-        margin:       0.5,
-        filename:     nombreArchivo,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2 },
-        jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
-    };
-    
-    // Antes usábamos .save(), que intenta descargar directamente.
-    // Ahora usamos .output('dataurlnewwindow'), que abre el PDF en una nueva pestaña.
-    html2pdf().set(opt).from(elemento).output('dataurlnewwindow');
-}
+    function generarPDF(elemento, nombreArchivo) {
+        console.log("Generando PDF:", nombreArchivo);
+        const opt = {
+            margin:       0.5,
+            filename:     nombreArchivo,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2 },
+            jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+        };
+        // Usamos la librería html2pdf que añadimos al <head>
+        html2pdf().set(opt).from(elemento).save();
+    }
 
         // --- INICIALIZACIÓN DE LA APP ---
         function initializeApp() {
@@ -1272,17 +1274,23 @@ const displayTotal = parseFloat(totalAfterDiscount || 0).toFixed(2);
 
             updateProductAdminUI();
 
-            supabase.auth.onAuthStateChange((_event, session) => { 
-                if (session) { 
-                    userGreetingEl.textContent = `Bienvenido, ${session.user.email}`; 
-                    showView('view-main-menu'); 
-                } else { 
-                    showView('view-auth'); 
-                } 
-                isProductAdminMode = false;
-                if (adminKeyInputInventario) adminKeyInputInventario.value = '';
-                checkProductAdminKey('', adminStatusInventario);
-            });
+            supabase.auth.onAuthStateChange((_event, session) => {
+    if (session) {
+        userGreetingEl.textContent = `Bienvenido, ${session.user.email}`;
+        
+        // ANTES: Siempre mostrábamos 'view-main-menu'
+        // AHORA: Revisamos si hay una vista guardada en la memoria
+        const lastView = sessionStorage.getItem('lastView');
+        
+        if (lastView) {
+            showView(lastView); // Si la hay, vamos a esa vista
+        } else {
+            showView('view-main-menu'); // Si no, vamos al menú principal
+        }
+    } else {
+        showView('view-auth');
+    }
+});
         }
         document.addEventListener('DOMContentLoaded', initializeApp);
     </script>
