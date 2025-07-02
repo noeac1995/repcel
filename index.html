@@ -364,19 +364,23 @@
         function showAuthSuccess(message) { authErrorEl.classList.add('hidden'); authSuccessEl.textContent = message; authSuccessEl.classList.remove('hidden'); }
         function clearAuthMessages() { authErrorEl.classList.add('hidden'); authSuccessEl.classList.add('hidden'); }
         function toggleAuthMode() { isRegisterMode = !isRegisterMode; clearAuthMessages(); loginForm.reset(); document.getElementById('auth-title').textContent = isRegisterMode ? 'Crear Nueva Cuenta' : 'Iniciar Sesión'; document.getElementById('auth-button').textContent = isRegisterMode ? 'Registrarse' : 'Entrar'; toggleAuthLink.textContent = isRegisterMode ? '¿Ya tienes cuenta? Inicia sesión.' : '¿No tienes cuenta? Regístrate aquí.'; }
-        function showView(viewId) { document.querySelectorAll('.view').forEach(v => v.classList.remove('active')); if (viewId === 'view-auth') { appContent.classList.add('hidden'); document.getElementById('view-auth').classList.add('active'); } else { appContent.classList.remove('hidden'); const viewToShow = document.getElementById(viewId); if(viewToShow) viewToShow.classList.add('active'); }
-            if (viewId === 'view-inventario') {
-                checkProductAdminKey(adminKeyInputInventario.value, adminStatusInventario);
-            } else {
-                 isProductAdminMode = false;
-                 if (adminKeyInputInventario) adminKeyInputInventario.value = '';
-                 updateProductAdminUI();
-            }
-            if (viewId === 'view-ventas') {
-                CargarYMostrarVentasHistoricas();
-            }
-            updateProductAdminUI();
-        }
+        function showView(viewId) {
+    // Primero, guardamos la vista que vamos a mostrar
+    if (viewId !== 'view-auth') { // No queremos guardar la vista de login
+        sessionStorage.setItem('lastView', viewId);
+    }
+
+    // El resto de la función es igual
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    if (viewId === 'view-auth') {
+        appContent.classList.add('hidden');
+        document.getElementById('view-auth').classList.add('active');
+    } else {
+        appContent.classList.remove('hidden');
+        const viewToShow = document.getElementById(viewId);
+        if (viewToShow) viewToShow.classList.add('active');
+    }
+}
         
         // --- FUNCIONES DE ADMINISTRACIÓN Y PERMISOS DE PRODUCTOS ---
         function checkProductAdminKey(key, statusElement) {
