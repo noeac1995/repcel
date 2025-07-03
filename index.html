@@ -290,19 +290,32 @@
 
     <script type="module">
         'use strict';
+        
         import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
         // --- CONFIGURACIÓN E INICIALIZACIÓN ---
         const SUPABASE_URL = 'https://fssawsdgdqnsiyetaplz.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZzc2F3c2RnZHFuc2l5ZXRhcGx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEwMDgwNDYsImV4cCI6MjA2NjU4NDA0Nn0.dBPYIlocjZ31-MifeFM0LlRzrHMcwRK7r_ZZl1ei-2c';
         const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
+function imprimirTicketNativo(ticketHtml) {
+            // 'AndroidBridge' es el nombre que le daremos a la interfaz en Kotlin/Java
+            if (window.AndroidBridge && typeof window.AndroidBridge.printHtmlTicket === 'function') {
+                window.AndroidBridge.printHtmlTicket(ticketHtml);
+            } else {
+                // Fallback para depuración o si se usa en un navegador web normal (no en WebView)
+                console.warn("AndroidBridge o printHtmlTicket no disponible. Usando window.print() como fallback.");
+                const ticketContainer = document.getElementById('ticket-imprimible');
+                // Asegúrate de que el HTML esté en el contenedor antes de imprimir con el fallback
+                ticketContainer.innerHTML = ticketHtml;
+                window.print();
+            }
+        }
         // --- ESTADO DE LA APP ---
         let isRegisterMode = false;
         let cart = [];
         let productosDisponibles = [];
         let isProductAdminMode = false;
-        const PRODUCT_ADMIN_KEY = 'claveproductos123'; 
+        const PRODUCT_ADMIN_KEY = 'america17'; 
 
         // --- ELEMENTOS DEL DOM ---
         const appContent = document.getElementById('app-content');
@@ -712,8 +725,8 @@ function setupImageViewerListeners(containerElement) {
         function agregarAlCarrito(productoId) { const productoEnStock = productosDisponibles.find(p => p.id === productoId); if (!productoEnStock) return; const itemEnCarrito = cart.find(item => item.id === productoId); if (itemEnCarrito) { if (itemEnCarrito.cantidad < productoEnStock.cantidad) itemEnCarrito.cantidad++; else alert('No hay más stock disponible.'); } else { cart.push({ ...productoEnStock, cantidad: 1 }); } renderizarCarrito(); }
         function manejarCantidadCarrito(productoId, cambio) { const itemEnCarrito = cart.find(item => item.id === productoId); if (!itemEnCarrito) return; const productoEnStock = productosDisponibles.find(p => p.id === productoId); const nuevaCantidad = itemEnCarrito.cantidad + cambio; if (cambio > 0 && nuevaCantidad > productoEnStock.cantidad) { alert('No hay más stock disponible.'); return; } if (nuevaCantidad <= 0) cart = cart.filter(item => item.id !== productoId); else itemEnCarrito.cantidad = nuevaCantidad; renderizarCarrito(); }
         
-        function imprimirTicket(venta) {
-            const ticketContainer = document.getElementById('ticket-imprimible');
+         function imprimirTicket(venta) {
+            const ticketContainer = document.getElementById('ticket-imprimible'); // Ya lo tienes
             const now = new Date();
             const fechaHoraActual = now.toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
@@ -731,8 +744,8 @@ function setupImageViewerListeners(containerElement) {
             const descuentoAplicado = venta.discount_percentage ? `${venta.discount_percentage}%` : '0%';
             const totalFinal = (venta.total_after_discount ?? venta.total).toFixed(2);
 
-
-            ticketContainer.innerHTML = `
+            // Carga el HTML en una variable para pasarlo a la función nativa
+            const ticketContentHtml = `
                 <div style="font-family: 'Courier New', monospace; font-size: 10px; width: 58mm; padding: 5px; text-align: center;">
                     <h2 style="font-size: 1.5em; font-weight: bold; margin-bottom: 2px;">Rep<span style="color: #dc2626;">Cell</span> Salamanca</h2>
                     <p style="font-size: 0.9em; margin-bottom: 5px;">Sistema de Gestión</p>
@@ -764,11 +777,17 @@ function setupImageViewerListeners(containerElement) {
                     <p style="font-size: 0.9em; text-align: center; margin-top: 10px;">¡Gracias por su compra!</p>
                     <br>
                 </div>`;
-            window.print();
+
+            // Establece el HTML en el contenedor oculto (para el caso del fallback window.print())
+            ticketContainer.innerHTML = ticketContentHtml;
+
+            // Llama a la nueva función que se comunica con el código nativo
+            imprimirTicketNativo(ticketContentHtml);
         }
+
         
         // --- NUEVA FUNCIÓN: IMPRIMIR TICKET DE REPARACIÓN ---
-        async function imprimirTicketReparacion(reparacionId) { // <<-- Aquí el cambio: Añadir 'async'
+       async function imprimirTicketReparacion(reparacionId) { // <<-- Aquí el cambio: Añadir 'async'
             const { data: r, error } = await supabase.from('reparaciones').select('*').eq('id', reparacionId).single();
             if (error || !r) {
                 console.error("Error al cargar datos de reparación para el ticket:", error);
@@ -776,12 +795,13 @@ function setupImageViewerListeners(containerElement) {
                 return;
             }
 
-            const ticketContainer = document.getElementById('ticket-imprimible');
+            const ticketContainer = document.getElementById('ticket-imprimible'); // Ya lo tienes
             const now = new Date();
             const fechaHoraActual = now.toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
             const fechaRegistro = new Date(r.creado_en).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-            ticketContainer.innerHTML = `
+            // Carga el HTML en una variable para pasarlo a la función nativa
+            const ticketContentHtml = `
                 <div style="font-family: 'Courier New', monospace; font-size: 10px; width: 58mm; padding: 5px; text-align: center;">
                     <h2 style="font-size: 1.5em; font-weight: bold; margin-bottom: 2px;">Rep<span style="color: #dc2626;">Cell</span> Salamanca</h2>
                     <p style="font-size: 0.9em; margin-bottom: 5px;">Sistema de Gestión</p>
@@ -825,7 +845,12 @@ function setupImageViewerListeners(containerElement) {
                     <p style="font-size: 0.9em; text-align: center; margin-top: 10px;">¡Gracias por tu confianza!</p>
                     <br>
                 </div>`;
-            window.print();
+            
+            // Establece el HTML en el contenedor oculto (para el caso del fallback window.print())
+            ticketContainer.innerHTML = ticketContentHtml;
+
+            // Llama a la nueva función que se comunica con el código nativo
+            imprimirTicketNativo(ticketContentHtml);
         }
 
         async function procesarVenta() {
