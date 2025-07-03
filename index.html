@@ -51,7 +51,14 @@
             #ticket-imprimible .text-right { text-align: right; }
             #ticket-imprimible .border-bottom-dashed { border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px; }
             #ticket-imprimible .border-top-dashed { border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px; }
-        }
+            #ticket-imprimible div {
+        border: 1px solid red; /* Para ver los límites del div principal del ticket */
+    }
+    #ticket-imprimible table, #ticket-imprimible th, #ticket-imprimible td {
+        border: 1px dashed blue; /* Para ver los límites de la tabla y celdas */
+    }
+}
+        
         .image-preview {
             width: 100px; /* Ajusta el tamaño de la miniatura según necesites */
             height: 100px; /* Ajusta el tamaño de la miniatura según necesites */
